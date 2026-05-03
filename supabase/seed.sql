@@ -60,3 +60,36 @@ on conflict (id) do nothing;
 -- UPDATE public.profiles SET role = 'admin', name = 'Society Admin' WHERE id = '<user-uuid>';
 -- UPDATE public.profiles SET role = 'guard', name = 'Gate Security' WHERE id = '<user-uuid>';
 -- UPDATE public.profiles SET role = 'resident', name = 'Sharma Family', flat_id = 'A-101' WHERE id = '<user-uuid>';
+
+
+-- ══════════════════════════════════════════════════════════════════════
+-- USER CREATION GUIDE (new flat-number login system)
+-- ══════════════════════════════════════════════════════════════════════
+--
+-- Email format used internally (user never sees this):
+--   Guard  → guard@myapartment.local
+--   Admin  → admin@myapartment.local
+--   Flat A-101 resident → flat-a-101@myapartment.local
+--   Flat B-203 resident → flat-b-203@myapartment.local
+--
+-- STEP 1: Create users in Supabase Auth → Users → Add User
+--   Use the internal email above + any PIN (minimum 4 digits) as password
+--   Example:
+--     Email: guard@myapartment.local    Password: 1234
+--     Email: admin@myapartment.local    Password: 5678
+--     Email: flat-a-101@myapartment.local  Password: 4321
+--
+-- STEP 2: After creating each user, run this SQL with their UUID:
+--
+-- Guard:
+-- UPDATE public.profiles SET role='guard', name='Gate Security' WHERE id='GUARD-UUID';
+--
+-- Admin:
+-- UPDATE public.profiles SET role='admin', name='RWA Admin' WHERE id='ADMIN-UUID';
+--
+-- Resident (flat A-101):
+-- UPDATE public.profiles SET role='resident', name='Sharma Family', flat_id='A-101' WHERE id='RESIDENT-UUID';
+--
+-- ═══ BULK CREATE RESIDENTS (example for Block A) ═════════════════════
+-- Repeat pattern for each flat you want to onboard.
+-- The resident logs in with: Flat Number = A-101, PIN = 1234 (or whatever you set)
