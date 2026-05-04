@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 
+// Converts what user types → internal Supabase email
+// Residents: "A-101" → "flat-a-101@myapartment.local"
+// Guard:     "GUARD"  → "guard@myapartment.local"
+// Admin:     "ADMIN"  → "admin@myapartment.local"
 export function toInternalEmail(input) {
   const v = input.trim().toLowerCase()
   if (v === 'guard') return 'guard@myapartment.local'
@@ -32,12 +36,14 @@ export default function Login() {
   return (
     <div style={S.page}>
       <div style={S.card}>
+
         <div style={S.logoWrap}>
           <div style={S.logoIcon}>🏢</div>
           <div style={S.logoTitle}>MyApartment</div>
           <div style={S.logoSub}>Smart Intercom &amp; Visitor Management</div>
         </div>
 
+        {/* Resident / Staff tab */}
         <div style={S.tabs}>
           <button style={{ ...S.tabBtn, ...(activeTab === 'resident' ? S.tabActive : {}) }}
             onClick={() => { setActiveTab('resident'); setLoginId(''); setError('') }}>
@@ -90,6 +96,7 @@ export default function Login() {
           {loading ? '⚙ Signing in...' : '🔓 Sign In'}
         </button>
 
+        {/* Hint */}
         <div style={S.hintBox}>
           {activeTab === 'resident' ? <>
             <div style={S.hintTitle}>Resident Login</div>
@@ -119,3 +126,15 @@ const S = {
   tabBtn: { flex: 1, padding: '8px 6px', border: 'none', borderRadius: 7, background: 'transparent', color: '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   tabActive: { background: '#f59e0b', color: '#000', boxShadow: '0 2px 8px rgba(245,158,11,0.2)' },
   errorBox: { background: '#7f1d1d', border: '1px solid #ef4444', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#fca5a5', marginBottom: 14 },
+  fieldWrap: { marginBottom: 14 },
+  label: { display: 'block', fontSize: 11, color: '#64748b', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
+  input: { width: '100%', padding: '12px 14px', background: '#1e2636', border: '1px solid #1e2c42', borderRadius: 9, color: '#e2e8f0', fontSize: 16, outline: 'none', boxSizing: 'border-box' },
+  eyeBtn: { position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', padding: 4 },
+  loginBtn: { width: '100%', padding: 14, background: '#f59e0b', color: '#000', border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: 'pointer', marginTop: 4, letterSpacing: 0.5, boxShadow: '0 4px 20px rgba(245,158,11,0.2)' },
+  disabledBtn: { opacity: 0.6, cursor: 'not-allowed' },
+  hintBox: { marginTop: 20, padding: '12px 14px', background: '#161c27', borderRadius: 10, border: '1px solid #1e2c42' },
+  hintTitle: { fontSize: 11, color: '#64748b', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  hintRow: { fontSize: 13, color: '#94a3b8', marginBottom: 5, display: 'flex', gap: 8, alignItems: 'flex-start' },
+  hintKey: { background: '#1e2636', color: '#f59e0b', borderRadius: 4, padding: '1px 7px', fontSize: 11, fontFamily: 'monospace', whiteSpace: 'nowrap', flexShrink: 0 },
+  secNote: { textAlign: 'center', marginTop: 16, fontSize: 11, color: '#475569' },
+}
