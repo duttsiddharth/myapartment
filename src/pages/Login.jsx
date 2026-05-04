@@ -118,4 +118,4 @@ const S = {
   tabs: { display: 'flex', gap: 4, background: '#161c27', border: '1px solid #1e2c42', borderRadius: 10, padding: 3, marginBottom: 20 },
   tabBtn: { flex: 1, padding: '8px 6px', border: 'none', borderRadius: 7, background: 'transparent', color: '#64748b', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   tabActive: { background: '#f59e0b', color: '#000', boxShadow: '0 2px 8px rgba(245,158,11,0.2)' },
-  errorBox: { background: '#7f1d1d', border: '1px solid #ef4444', borderRadius: 8, padding: '10px 14px', fontSize: 13, color:
+  errorBox: { background: '#7f1d1d', border: '1px solid #ef4444', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#fca5a5', marginBottom: 14 },
