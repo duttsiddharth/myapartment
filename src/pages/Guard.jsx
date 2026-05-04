@@ -4,7 +4,6 @@ import { useAuth } from '../hooks/useAuth'
 import { useCallStatusUpdate, useEmergencyAlerts, useAnnouncements } from '../hooks/useRealtime'
 import Icon from '../components/Icons'
 
-const BLOCKS = ['A', 'B', 'C', 'D']
 const fmt = (d) => new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })
 const fmtTimer = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
@@ -38,7 +37,7 @@ export default function GuardPage() {
   }, [])
 
   const loadFlats = async () => {
-    const { data } = await supabase.from('flats').select('*').order('block').order('floor').order('unit')
+    const { data } = await supabase.from('flats').select('*').order('floor').order('id')
     setFlats(data || [])
   }
   const loadVisitorLog = async () => {
@@ -179,11 +178,9 @@ export default function GuardPage() {
 
   // ── Derived ──────────────────────────────────────────────────────────
   const filteredFlats = flats.filter(f => {
-    if (searchQ) {
-      const q = searchQ.toLowerCase()
-      return f.id.toLowerCase().includes(q) || f.resident_name.toLowerCase().includes(q)
-    }
-    return f.block === selectedBlock
+    if (!searchQ) return true
+    const q = searchQ.toLowerCase()
+    return f.id.toLowerCase().includes(q) || f.resident_name.toLowerCase().includes(q)
   })
 
   const unackedEmergencies = emergencies.filter(e => !e.acknowledged).length
@@ -275,20 +272,31 @@ export default function GuardPage() {
                 <span className="search-icon"><Icon name="search" size={16} /></span>
                 <input className="search-input" placeholder="Search flat number or resident..." value={searchQ} onChange={e => setSearchQ(e.target.value)} />
               </div>
-              {!searchQ && (
-                <div className="block-tabs">
-                  {BLOCKS.map(b => <button key={b} className={`block-tab ${selectedBlock === b ? 'active' : ''}`} onClick={() => setSelectedBlock(b)}>Block {b}</button>)}
-                </div>
-              )}
               <div style={{ maxHeight: 300, overflowY: 'auto' }}>
                 {filteredFlats.slice(0, 25).map(flat => (
                   <div key={flat.id} className="flat-item">
                     <div className="flat-badge mono">{flat.id}</div>
                     <div className="flat-info">
                       <div className="flat-name">{flat.resident_name}</div>
-                      <div className="flat-meta">Floor {flat.floor} · Unit {flat.unit}</div>
+                      <div className="flat-meta">Floor {flat.floor}{flat.phone ? ` · ${flat.phone}` : ''}</div>
                     </div>
-                    <button className="btn btn-ghost btn-sm btn-icon" onClick={() => { setVisitorFlatId(flat.id); initiateCall(flat) }} disabled={!!activeCall}><Icon name="phone" size={15} /></button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {/* Mobile phone call — opens dialer */}
+                      {flat.phone && (
+                        <a href={`tel:${flat.phone}`}
+                          style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--green-dim)', border: '1px solid var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--green)', textDecoration: 'none' }}
+                          title={`Call ${flat.phone}`}>
+                          <Icon name="phone" size={15} />
+                        </a>
+                      )}
+                      {/* App intercom call */}
+                      <button className="btn btn-ghost btn-sm btn-icon"
+                        onClick={() => { setVisitorFlatId(flat.id); initiateCall(flat) }}
+                        disabled={!!activeCall}
+                        title="Intercom call via app">
+                        <Icon name="mic" size={15} />
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {filteredFlats.length === 0 && <div className="empty">No results found</div>}
