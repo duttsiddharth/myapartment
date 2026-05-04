@@ -260,6 +260,7 @@ If the society grows or needs more features:
 
 ## 🆘 TROUBLESHOOTING
 
+
 **"Missing Supabase environment variables"**
 → Check `.env.local` file exists and has correct values. Restart `npm run dev`.
 
