@@ -25,7 +25,7 @@ export default function Login() {
   const handleLogin = async () => {
     const id = loginId.trim()
     if (!id) { setError('Please enter your Flat Number or Staff ID.'); return }
-    if (pin.length < 4) { setError('PIN must be at least 4 digits.'); return }
+    if (pin.length < 3) { setError('PIN must be at least 3 digits.'); return }
     setLoading(true); setError('')
     const email = toInternalEmail(id)
     const err = await signIn(email, pin)
