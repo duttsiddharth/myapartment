@@ -2,43 +2,44 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../hooks/useAuth'
 import { useCallStatusUpdate, useEmergencyAlerts, useAnnouncements } from '../hooks/useRealtime'
+import { useVoiceCall } from '../hooks/useVoiceCall'
 import Icon from '../components/Icons'
 
+const FLOORS = [1,2,3,4,5,6,7,8,9,10,11,12,13]
 const fmt = (d) => new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })
-const fmtTimer = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
 export default function GuardPage() {
   const { user, profile, signOut } = useAuth()
+  const voice = useVoiceCall()
   const [tab, setTab]               = useState('call')
   const [flats, setFlats]           = useState([])
   const [visitorLog, setVisitorLog] = useState([])
   const [announcements, setAnnouncements] = useState([])
   const [emergencies, setEmergencies] = useState([])
   const [searchQ, setSearchQ]       = useState('')
-  const [selectedBlock, setSelectedBlock] = useState('A')
+  const [selectedFloor, setSelectedFloor] = useState(1)
   const [visitorName, setVisitorName] = useState('')
   const [visitorPurpose, setVisitorPurpose] = useState('')
-  const [visitorFlatId, setVisitorFlatId] = useState('')
-  const [activeCall, setActiveCall] = useState(null)   // call row from DB
+  const [visitorFlatId, setVisitorFlatId] = useState('101')
+  const [activeCall, setActiveCall] = useState(null)
   const [callTimer, setCallTimer]   = useState(0)
   const [annText, setAnnText]       = useState('')
   const [annType, setAnnType]       = useState('info')
-  const [aiMessages, setAiMessages] = useState([{ role: 'assistant', content: 'Hi! I\'m SecureAI. Ask me about any flat, visitor procedure, or security policy.' }])
+  const [aiMessages, setAiMessages] = useState([{ role: 'assistant', content: "Hi! I'm SecureAI. Ask me about any flat, visitor procedure, or security policy." }])
   const [aiInput, setAiInput]       = useState('')
   const [aiLoading, setAiLoading]   = useState(false)
   const [saving, setSaving]         = useState(false)
-  const timerRef   = useRef(null)
-  const aiEndRef   = useRef(null)
+  const timerRef  = useRef(null)
+  const aiEndRef  = useRef(null)
 
-  // Load data
   useEffect(() => {
     loadFlats(); loadVisitorLog(); loadAnnouncements(); loadEmergencies()
-    setVisitorFlatId('A-101')
   }, [])
 
   const loadFlats = async () => {
-    const { data } = await supabase.from('flats').select('*').order('floor').order('id')
+    const { data } = await supabase.from('flats').select('*').order('floor').order('unit')
     setFlats(data || [])
+    if (data?.length) setVisitorFlatId(data[0].id)
   }
   const loadVisitorLog = async () => {
     const { data } = await supabase.from('visitor_log').select('*').order('created_at', { ascending: false }).limit(60)
@@ -53,45 +54,38 @@ export default function GuardPage() {
     setEmergencies(data || [])
   }
 
-  // Realtime — watch call status updates
   useCallStatusUpdate(activeCall?.id, async (updated) => {
     setActiveCall(updated)
     if (['allowed', 'denied', 'ended', 'missed'].includes(updated.status)) {
-      clearInterval(timerRef.current)
-      setCallTimer(0)
+      clearInterval(timerRef.current); setCallTimer(0)
       if (updated.status === 'allowed' || updated.status === 'denied') {
-        await logVisitorEntry(updated.flat_id, updated.status, updated.id)
-        setActiveCall(null)
-        loadVisitorLog()
+        await logVisitorEntry(updated.flat_id, updated.status)
+        setActiveCall(null); loadVisitorLog()
       }
     }
   })
 
-  // Realtime — emergency alerts
   useEmergencyAlerts('guard', (alert) => {
     setEmergencies(prev => [alert, ...prev])
-    if (tab !== 'log') setTab('log')
+    setTab('log')
   })
 
-  // Realtime — announcements
   useAnnouncements((ann) => setAnnouncements(prev => [ann, ...prev]))
 
-  // Call timer
   useEffect(() => {
-    if (activeCall?.status === 'connected') {
+    if (activeCall?.status === 'connected' || voice.callState === 'connected') {
       timerRef.current = setInterval(() => setCallTimer(t => t + 1), 1000)
     } else {
       clearInterval(timerRef.current)
     }
     return () => clearInterval(timerRef.current)
-  }, [activeCall?.status])
+  }, [activeCall?.status, voice.callState])
 
   useEffect(() => { aiEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [aiMessages])
 
-  // ── Actions ──────────────────────────────────────────────────────────
-
   const initiateCall = async (flat) => {
     if (activeCall) return
+    const channelName = `flat-${flat.id}-${Date.now()}`
     const { data, error } = await supabase.from('calls').insert({
       flat_id: flat.id,
       resident_name: flat.resident_name,
@@ -99,52 +93,42 @@ export default function GuardPage() {
       visitor_purpose: visitorPurpose || 'Visit',
       status: 'ringing',
       initiated_by: user.id,
+      channel_name: channelName,
     }).select().single()
-    if (!error) setActiveCall(data)
+    if (!error) {
+      setActiveCall(data)
+      voice.joinCall(channelName).catch(console.error)
+    }
   }
 
   const endCall = async () => {
     if (!activeCall) return
     await supabase.from('calls').update({ status: 'ended' }).eq('id', activeCall.id)
-    setActiveCall(null)
-    clearInterval(timerRef.current)
-    setCallTimer(0)
+    await voice.endCall()
+    setActiveCall(null); clearInterval(timerRef.current); setCallTimer(0)
   }
 
-  const logVisitorEntry = async (flatId, status, callId = null) => {
+  const logVisitorEntry = async (flatId, status) => {
     const flat = flats.find(f => f.id === (flatId || visitorFlatId))
     await supabase.from('visitor_log').insert({
       visitor_name: visitorName || 'Visitor',
       purpose: visitorPurpose || 'Visit',
       flat_id: flat?.id || visitorFlatId,
       resident_name: flat?.resident_name,
-      status,
-      logged_by: user.id,
+      status, logged_by: user.id,
     })
     setVisitorName(''); setVisitorPurpose('')
     loadVisitorLog()
   }
 
-  const allowDirectly = async () => {
-    setSaving(true)
-    await logVisitorEntry(visitorFlatId, 'allowed')
-    setSaving(false)
-  }
-  const denyDirectly = async () => {
-    setSaving(true)
-    await logVisitorEntry(visitorFlatId, 'denied')
-    setSaving(false)
-  }
+  const allowDirectly = async () => { setSaving(true); await logVisitorEntry(visitorFlatId, 'allowed'); setSaving(false) }
+  const denyDirectly  = async () => { setSaving(true); await logVisitorEntry(visitorFlatId, 'denied');  setSaving(false) }
 
   const sendAnnouncement = async () => {
     if (!annText.trim()) return
     setSaving(true)
-    await supabase.from('announcements').insert({
-      text: annText.trim(), type: annType, created_by: user.id, created_by_name: profile?.name || 'Guard'
-    })
-    setAnnText('')
-    setSaving(false)
-    loadAnnouncements()
+    await supabase.from('announcements').insert({ text: annText.trim(), type: annType, created_by: user.id, created_by_name: profile?.name || 'Guard' })
+    setAnnText(''); setSaving(false); loadAnnouncements()
   }
 
   const acknowledgeAlert = async (id) => {
@@ -163,32 +147,35 @@ export default function GuardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514', max_tokens: 1000,
-          system: `You are SecureAI, the intelligent security assistant for MyApartment — 200 flats across 4 blocks (A-D), 10 floors, 5 units each. Help the security guard with visitor management, flat info, and security procedures. Total visitors today: ${visitorLog.length}. Active emergencies: ${emergencies.filter(e => !e.acknowledged).length}. Be concise and practical.`,
-          messages: aiMessages.filter((_, i) => i > 0 || aiMessages[0].role !== 'assistant')
-                              .concat({ role: 'user', content: msg })
+          system: `You are SecureAI, security assistant for MyApartment — 13 floors, 15 flats per floor (101-115 to 1301-1315), 195 flats total. Help the guard with visitor management and security. Visitors today: ${visitorLog.length}. Active emergencies: ${emergencies.filter(e => !e.acknowledged).length}.`,
+          messages: aiMessages.filter((_, i) => i > 0).concat({ role: 'user', content: msg })
         })
       })
       const data = await res.json()
       setAiMessages(prev => [...prev, { role: 'assistant', content: data.content?.[0]?.text || 'Could not process.' }])
     } catch {
-      setAiMessages(prev => [...prev, { role: 'assistant', content: 'Network error. Please try again.' }])
+      setAiMessages(prev => [...prev, { role: 'assistant', content: 'Network error. Try again.' }])
     }
     setAiLoading(false)
   }
 
-  // ── Derived ──────────────────────────────────────────────────────────
+  // Filter flats by floor or search
   const filteredFlats = flats.filter(f => {
-    if (!searchQ) return true
-    const q = searchQ.toLowerCase()
-    return f.id.toLowerCase().includes(q) || f.resident_name.toLowerCase().includes(q)
+    if (searchQ) {
+      const q = searchQ.toLowerCase()
+      return f.id.toLowerCase().includes(q) || f.resident_name.toLowerCase().includes(q)
+    }
+    return f.floor === selectedFloor
   })
 
   const unackedEmergencies = emergencies.filter(e => !e.acknowledged).length
+  const fmtTimer = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
+
   const tabs = [
-    { id: 'call', label: 'CALL', icon: 'phone' },
-    { id: 'log',  label: 'LOG',  icon: 'log',  badge: unackedEmergencies },
-    { id: 'ann',  label: 'ALERTS', icon: 'bell' },
-    { id: 'ai',   label: 'AI',   icon: 'bot' },
+    { id: 'call',  label: 'CALL',   icon: 'phone' },
+    { id: 'log',   label: 'LOG',    icon: 'log',  badge: unackedEmergencies },
+    { id: 'ann',   label: 'ALERTS', icon: 'bell' },
+    { id: 'ai',    label: 'AI',     icon: 'bot'  },
   ]
 
   return (
@@ -198,7 +185,7 @@ export default function GuardPage() {
         <div className="header-logo">
           <div className="logo-icon">🏢</div>
           <div>
-            <div className="logo-text">{import.meta.env.VITE_SOCIETY_NAME || 'MyApartment'}</div>
+            <div className="logo-text">MyApartment</div>
             <div className="logo-sub">GUARD · {profile?.name || ''}</div>
           </div>
         </div>
@@ -209,26 +196,36 @@ export default function GuardPage() {
       </div>
 
       {/* Active Call Bar */}
-      {activeCall && ['ringing', 'connected'].includes(activeCall.status) && (
-        <div style={{ padding: '0 16px 0' }}>
-          <div className="active-call-bar" style={{ marginTop: 12 }}>
-            <Icon name={activeCall.status === 'connected' ? 'mic' : 'phone'} size={18} style={{ color: 'var(--green)' }} />
+      {activeCall && (
+        <div style={{ padding: '12px 16px 0' }}>
+          <div className="active-call-bar">
+            <Icon name={voice.callState === 'connected' ? 'mic' : 'phone'} size={18} style={{ color: 'var(--green)' }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600 }}>{activeCall.flat_id} — {activeCall.resident_name}</div>
+              <div style={{ fontWeight: 600 }}>Flat {activeCall.flat_id} — {activeCall.resident_name}</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {activeCall.status === 'connected' ? `Connected · ${fmtTimer(callTimer)}` : '🔔 Ringing — waiting for resident...'}
+                {voice.callState === 'connected' ? `🎙 Live · ${voice.callDuration}` : '🔔 Ringing — waiting for resident...'}
               </div>
             </div>
+            {voice.callState === 'connected' && (
+              <button className={`btn btn-sm ${voice.isMuted ? 'btn-amber' : 'btn-ghost'}`} onClick={voice.toggleMute} style={{ marginRight: 6 }}>
+                {voice.isMuted ? '🔇' : '🎙'}
+              </button>
+            )}
             <button className="btn btn-red btn-sm" onClick={endCall}><Icon name="phoneOff" size={14} /></button>
           </div>
+          {voice.error && (
+            <div style={{ background: 'var(--red-dim)', border: '1px solid var(--red)', borderRadius: 8, padding: '8px 12px', marginTop: 6, fontSize: 12, color: 'var(--red)' }}>
+              ⚠ Voice: {voice.error}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Content */}
       <div className="content" style={{ paddingTop: 12 }}>
+
+        {/* ── CALL TAB ── */}
         {tab === 'call' && (
           <div>
-            {/* Stats */}
             <div className="stats-row">
               <div className="stat-card"><div className="stat-num">{visitorLog.length}</div><div className="stat-label">Today</div></div>
               <div className="stat-card"><div className="stat-num" style={{ color: 'var(--green)' }}>{visitorLog.filter(v => v.status === 'allowed').length}</div><div className="stat-label">Allowed</div></div>
@@ -252,12 +249,12 @@ export default function GuardPage() {
               <div className="form-group">
                 <label className="form-label">Flat to Visit</label>
                 <select className="form-select" value={visitorFlatId} onChange={e => setVisitorFlatId(e.target.value)}>
-                  {flats.map(f => <option key={f.id} value={f.id}>{f.id} — {f.resident_name}</option>)}
+                  {flats.map(f => <option key={f.id} value={f.id}>Flat {f.id} — {f.resident_name}</option>)}
                 </select>
               </div>
               <button className="btn btn-amber btn-full" disabled={!!activeCall || saving}
                 onClick={() => { const f = flats.find(f => f.id === visitorFlatId); if (f) initiateCall(f) }}>
-                <Icon name="phone" size={15} /> Call Flat (Resident Approves)
+                <Icon name="mic" size={15} /> Call Flat (Voice + Notification)
               </button>
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <button className="btn btn-green btn-sm" style={{ flex: 1 }} disabled={saving} onClick={allowDirectly}><Icon name="check" size={14} /> Allow Directly</button>
@@ -265,46 +262,69 @@ export default function GuardPage() {
               </div>
             </div>
 
-            {/* Directory */}
+            {/* Flat Directory */}
             <div className="card">
               <div className="card-title"><Icon name="search" size={16} /> Flat Directory</div>
               <div className="search-wrap">
                 <span className="search-icon"><Icon name="search" size={16} /></span>
-                <input className="search-input" placeholder="Search flat number or resident..." value={searchQ} onChange={e => setSearchQ(e.target.value)} />
+                <input className="search-input" placeholder="Search flat no. or resident name..." value={searchQ} onChange={e => setSearchQ(e.target.value)} />
               </div>
-              <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-                {filteredFlats.slice(0, 25).map(flat => (
+
+              {/* Floor tabs — scrollable */}
+              {!searchQ && (
+                <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, marginBottom: 8 }}>
+                  {FLOORS.map(f => (
+                    <button key={f}
+                      onClick={() => setSelectedFloor(f)}
+                      style={{
+                        padding: '6px 14px', borderRadius: 20, border: '1px solid',
+                        borderColor: selectedFloor === f ? 'var(--amber)' : 'var(--border)',
+                        background: selectedFloor === f ? 'var(--amber)' : 'var(--surface3)',
+                        color: selectedFloor === f ? '#000' : 'var(--text-muted)',
+                        fontFamily: "'Rajdhani', sans-serif", fontWeight: 700,
+                        fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                      }}>
+                      Fl. {f}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                {filteredFlats.map(flat => (
                   <div key={flat.id} className="flat-item">
-                    <div className="flat-badge mono">{flat.id}</div>
+                    <div className="flat-badge mono">
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Fl.{flat.floor}</div>
+                      <div>{flat.id}</div>
+                    </div>
                     <div className="flat-info">
                       <div className="flat-name">{flat.resident_name}</div>
-                      <div className="flat-meta">Floor {flat.floor}{flat.phone ? ` · ${flat.phone}` : ''}</div>
+                      <div className="flat-meta">Floor {flat.floor} · Unit {flat.unit}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      {/* Mobile phone call — opens dialer */}
                       {flat.phone && (
                         <a href={`tel:${flat.phone}`}
                           style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--green-dim)', border: '1px solid var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--green)', textDecoration: 'none' }}
-                          title={`Call ${flat.phone}`}>
+                          title="Call mobile">
                           <Icon name="phone" size={15} />
                         </a>
                       )}
-                      {/* App intercom call */}
                       <button className="btn btn-ghost btn-sm btn-icon"
                         onClick={() => { setVisitorFlatId(flat.id); initiateCall(flat) }}
                         disabled={!!activeCall}
-                        title="Intercom call via app">
+                        title="Intercom call">
                         <Icon name="mic" size={15} />
                       </button>
                     </div>
                   </div>
                 ))}
-                {filteredFlats.length === 0 && <div className="empty">No results found</div>}
+                {filteredFlats.length === 0 && <div className="empty">No flats found</div>}
               </div>
             </div>
           </div>
         )}
 
+        {/* ── LOG TAB ── */}
         {tab === 'log' && (
           <div>
             {emergencies.filter(e => !e.acknowledged).length > 0 && (
@@ -313,7 +333,7 @@ export default function GuardPage() {
                 {emergencies.filter(e => !e.acknowledged).map(e => (
                   <div key={e.id} className="log-item emergency" style={{ justifyContent: 'space-between' }}>
                     <div>
-                      <div className="log-main">SOS from {e.flat_id} — {e.resident_name}</div>
+                      <div className="log-main">SOS from Flat {e.flat_id} — {e.resident_name}</div>
                       <div className="log-meta">{fmt(e.created_at)}</div>
                     </div>
                     <button className="btn btn-amber btn-sm" onClick={() => acknowledgeAlert(e.id)}>Ack</button>
@@ -331,7 +351,7 @@ export default function GuardPage() {
                 <div key={v.id} className={`log-item ${v.status}`}>
                   <div className={`log-dot ${v.status === 'allowed' ? 'green' : 'red'}`} />
                   <div className="log-content">
-                    <div className="log-main">{v.visitor_name} → {v.flat_id}</div>
+                    <div className="log-main">{v.visitor_name} → Flat {v.flat_id}</div>
                     <div className="log-meta">{v.purpose} · {fmt(v.created_at)}</div>
                   </div>
                   <span className={`pill ${v.status === 'allowed' ? 'pill-green' : 'pill-red'}`}>{v.status === 'allowed' ? '✓' : '✗'}</span>
@@ -341,6 +361,7 @@ export default function GuardPage() {
           </div>
         )}
 
+        {/* ── ANN TAB ── */}
         {tab === 'ann' && (
           <div>
             <div className="card">
@@ -375,6 +396,7 @@ export default function GuardPage() {
           </div>
         )}
 
+        {/* ── AI TAB ── */}
         {tab === 'ai' && (
           <div className="card">
             <div className="card-title"><Icon name="bot" size={16} /> SecureAI Assistant</div>
@@ -393,7 +415,7 @@ export default function GuardPage() {
               <button className="btn btn-amber btn-icon" onClick={sendAiMessage} disabled={aiLoading}><Icon name="send" size={16} /></button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-              {['Suspicious visitor protocol', 'Fire emergency steps', 'Which flat is Sharma?', 'Visitor stats today'].map(q => (
+              {['Suspicious visitor protocol','Fire emergency steps','Who visited today?','How many flats on floor 9?'].map(q => (
                 <button key={q} className="btn btn-ghost btn-sm" style={{ fontSize: 11 }} onClick={() => setAiInput(q)}>{q}</button>
               ))}
             </div>
