@@ -1,122 +1,113 @@
 import { useState, useRef, useCallback } from 'react'
-import { supabase } from '../supabaseClient'
 
-// ⚠ REPLACE THIS WITH YOUR AGORA APP ID FROM console.agora.io
-// Get it from: console.agora.io → your project → App ID
-const HARDCODED_AGORA_APP_ID = '69f1ac14392b4cf9bdb57c6ed38745a4'
+// Daily.co WebRTC voice calls
+// Free tier: 10,000 minutes/month — more than enough for 200 flats
+// No App Certificate needed — just an API key
 
-// Lazy-load Agora SDK to avoid SSR issues
-let AgoraRTC = null
-const getAgora = async () => {
-  if (!AgoraRTC) {
-    const mod = await import('agora-rtc-sdk-ng')
-    AgoraRTC = mod.default
-    AgoraRTC.setLogLevel(4) // errors only
-  }
-  return AgoraRTC
-}
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+const DAILY_API_KEY = import.meta.env.VITE_DAILY_API_KEY || '37beeb1fa7be79be512fbf84267e0c03e9911ce1fa5b4368f851176ec3f277cc'
+const DAILY_DOMAIN  = import.meta.env.VITE_DAILY_DOMAIN  || 'siddharthdutt.daily.co'
 
 export function useVoiceCall() {
-  const [callState, setCallState] = useState('idle') // idle | calling | connected | ended
-  const [isMuted, setIsMuted]     = useState(false)
-  const [error, setError]         = useState(null)
+  const [callState, setCallState]       = useState('idle')
+  const [isMuted, setIsMuted]           = useState(false)
+  const [error, setError]               = useState(null)
   const [callDuration, setCallDuration] = useState(0)
 
-  const clientRef       = useRef(null)
-  const localTrackRef   = useRef(null)
-  const timerRef        = useRef(null)
-  const channelRef      = useRef(null)
+  const callFrameRef  = useRef(null)
+  const timerRef      = useRef(null)
+  const containerRef  = useRef(null)
 
-  // Get Agora token from Edge Function, fallback to no-token mode for testing
-  const getToken = async (channelName) => {
-    const appId = import.meta.env.VITE_AGORA_APP_ID || HARDCODED_AGORA_APP_ID
-    if (!appId || appId === 'REPLACE_WITH_YOUR_AGORA_APP_ID') {
-      throw new Error('Please replace HARDCODED_AGORA_APP_ID in useVoiceCall.js with your Agora App ID')
-    }
-
-    // Try Edge Function first (production)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-agora-token`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ channelName, uid: 0 }),
+  const createOrGetRoom = async (channelName) => {
+    // Create a Daily room via their API
+    const res = await fetch('https://api.daily.co/v1/rooms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${DAILY_API_KEY}`,
+      },
+      body: JSON.stringify({
+        name: channelName.replace(/[^a-zA-Z0-9-]/g, '-').slice(0, 40),
+        properties: {
+          exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour expiry
+          max_participants: 2,
+          enable_chat: false,
+          enable_screenshare: false,
+          start_audio_off: false,
+          start_video_off: true,  // audio only — no video
+        }
+      })
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      // Room may already exist — try to get it
+      if (err.error === 'invalid-request-error') {
+        const getRes = await fetch(`https://api.daily.co/v1/rooms/${channelName.replace(/[^a-zA-Z0-9-]/g, '-').slice(0, 40)}`, {
+          headers: { 'Authorization': `Bearer ${DAILY_API_KEY}` }
         })
-        if (res.ok) return res.json()
+        if (getRes.ok) return getRes.json()
       }
-    } catch (e) {
-      console.warn('Edge function unavailable, using no-token mode:', e.message)
+      throw new Error(`Daily room error: ${err.error || res.status}`)
     }
-
-    // Fallback: no token (works in Agora testing mode — disable App Certificate in Agora console)
-    return { token: null, appId, channelName }
+    return res.json()
   }
 
-  // Join a voice channel (called by both guard and resident)
   const joinCall = useCallback(async (channelName) => {
     try {
       setError(null)
       setCallState('calling')
-      channelRef.current = channelName
 
-      const Agora = await getAgora()
+      if (!DAILY_API_KEY || !DAILY_DOMAIN) {
+        throw new Error('Daily.co not configured. Add VITE_DAILY_API_KEY and VITE_DAILY_DOMAIN to Vercel.')
+      }
 
-      // Create client
-      const client = Agora.createClient({ mode: 'rtc', codec: 'vp8' })
-      clientRef.current = client
+      // Create room
+      const room = await createOrGetRoom(channelName)
+      const roomUrl = room.url
 
-      // Listen for remote users (resident joining)
-      client.on('user-published', async (user, mediaType) => {
-        await client.subscribe(user, mediaType)
-        if (mediaType === 'audio') {
-          user.audioTrack?.play()
-          setCallState('connected')
-          // Start timer
-          timerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000)
-        }
+      // Load Daily.co SDK dynamically
+      if (!window.DailyIframe) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+          script.src = 'https://unpkg.com/@daily-co/daily-js'
+          script.onload = resolve
+          script.onerror = reject
+          document.head.appendChild(script)
+        })
+      }
+
+      // Create invisible iframe for audio-only call
+      const container = document.createElement('div')
+      container.style.cssText = 'position:fixed;bottom:0;right:0;width:1px;height:1px;opacity:0;pointer-events:none;'
+      document.body.appendChild(container)
+      containerRef.current = container
+
+      const frame = window.DailyIframe.createFrame(container, {
+        showLeaveButton: false,
+        showFullscreenButton: false,
+        iframeStyle: { width: '1px', height: '1px' },
+      })
+      callFrameRef.current = frame
+
+      frame.on('joined-meeting', () => {
+        setCallState('connected')
+        timerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000)
       })
 
-      client.on('user-unpublished', () => {
-        // Remote hung up
+      frame.on('participant-joined', () => {
+        setCallState('connected')
+      })
+
+      frame.on('left-meeting', () => {
         endCall()
       })
 
-      client.on('user-left', () => {
-        endCall()
+      frame.on('error', (e) => {
+        setError(e.errorMsg || 'Voice call error')
+        setCallState('idle')
+        cleanup()
       })
 
-      // Get token from Edge Function
-      const { token, appId } = await getToken(channelName)
-
-      // Join the channel
-      await client.join(appId, channelName, token, null)
-
-      // Create and publish microphone track
-      const micTrack = await Agora.createMicrophoneAudioTrack({
-        encoderConfig: 'speech_low_quality', // optimised for voice
-        AEC: true,  // acoustic echo cancellation
-        ANS: true,  // ambient noise suppression
-        AGC: true,  // auto gain control
-      })
-      localTrackRef.current = micTrack
-      await client.publish(micTrack)
-
-      // If no one joins in 45 seconds → mark as missed
-      const missedTimer = setTimeout(() => {
-        if (callState !== 'connected') {
-          endCall('missed')
-        }
-      }, 45000)
-
-      // Clear missed timer when connected
-      client.on('user-published', () => clearTimeout(missedTimer))
+      await frame.join({ url: roomUrl, startVideoOff: true, startAudioOff: false })
 
     } catch (e) {
       console.error('Voice call error:', e)
@@ -126,32 +117,32 @@ export function useVoiceCall() {
     }
   }, [])
 
-  const endCall = useCallback(async (status = 'ended') => {
+  const endCall = useCallback(async () => {
     clearInterval(timerRef.current)
-    setCallState(status === 'missed' ? 'missed' : 'ended')
     setCallDuration(0)
+    setCallState('ended')
     await cleanup()
-    setTimeout(() => setCallState('idle'), 2000)
+    setTimeout(() => setCallState('idle'), 1500)
   }, [])
 
   const cleanup = async () => {
     try {
-      localTrackRef.current?.stop()
-      localTrackRef.current?.close()
-      localTrackRef.current = null
-      if (clientRef.current) {
-        await clientRef.current.leave()
-        clientRef.current = null
+      if (callFrameRef.current) {
+        await callFrameRef.current.leave()
+        callFrameRef.current.destroy()
+        callFrameRef.current = null
       }
-    } catch (e) {
-      console.error('Cleanup error:', e)
-    }
+      if (containerRef.current) {
+        containerRef.current.remove()
+        containerRef.current = null
+      }
+    } catch (e) { console.error('Cleanup:', e) }
   }
 
-  const toggleMute = useCallback(() => {
-    if (localTrackRef.current) {
+  const toggleMute = useCallback(async () => {
+    if (callFrameRef.current) {
       const muted = !isMuted
-      localTrackRef.current.setEnabled(!muted)
+      await callFrameRef.current.setLocalAudio(!muted)
       setIsMuted(muted)
     }
   }, [isMuted])
@@ -160,7 +151,7 @@ export function useVoiceCall() {
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
   return {
-    callState,   // idle | calling | connected | ended | missed
+    callState,
     isMuted,
     error,
     callDuration: formatDuration(callDuration),
