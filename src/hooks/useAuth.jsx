@@ -9,12 +9,20 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   const fetchProfile = async (uid) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*, flats(*)')
-      .eq('id', uid)
-      .single()
-    setProfile(data)
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*, flats(*)')
+        .eq('id', uid)
+        .single()
+      if (error) throw error
+      setProfile(data)
+    } catch (e) {
+      console.error('Profile fetch error:', e)
+      setProfile(null)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -31,8 +39,7 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  useEffect(() => { if (profile !== null) setLoading(false) }, [profile])
-
+  // email is already the internal mapped email (flat-a-101@myapartment.local etc)
   const signIn = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return error
@@ -40,11 +47,14 @@ export function AuthProvider({ children }) {
 
   const signOut = async () => {
     await supabase.auth.signOut()
-    setUser(null); setProfile(null)
+    setUser(null)
+    setProfile(null)
   }
 
+  const refetchProfile = () => { if (user) fetchProfile(user.id) }
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, refetchProfile: () => user && fetchProfile(user.id) }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, refetchProfile }}>
       {children}
     </AuthContext.Provider>
   )
