@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient'
 
 // ⚠ REPLACE THIS WITH YOUR AGORA APP ID FROM console.agora.io
 // Get it from: console.agora.io → your project → App ID
-const HARDCODED_AGORA_APP_ID = 'cb1bb617d12246d593d7399a61754d74'
+const HARDCODED_AGORA_APP_ID = '69f1ac14392b4cf9bdb57c6ed38745a4'
 
 // Lazy-load Agora SDK to avoid SSR issues
 let AgoraRTC = null
