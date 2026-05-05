@@ -97,6 +97,12 @@ export default function GuardPage() {
     }).select().single()
     if (!error) {
       setActiveCall(data)
+      // Broadcast as backup for realtime
+      await supabase.channel(`calls-broadcast:${flat.id}`).send({
+        type: 'broadcast',
+        event: 'incoming_call',
+        payload: { ...data, flatId: flat.id }
+      })
       voice.joinCall(channelName).catch(console.error)
     }
   }
