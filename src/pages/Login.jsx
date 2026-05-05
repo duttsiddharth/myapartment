@@ -2,15 +2,15 @@ import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 
 // Converts what user types → internal Supabase email
-// Residents: "A-101" → "flat-a-101@myapartment.local"
-// Guard:     "GUARD"  → "guard@myapartment.local"
-// Admin:     "ADMIN"  → "admin@myapartment.local"
+// Residents: "907"   → "907@myapartment.local"
+// Guard:     "GUARD" → "guard@myapartment.local"
+// Admin:     "ADMIN" → "admin@myapartment.local"
 export function toInternalEmail(input) {
   const v = input.trim().toLowerCase()
   if (v === 'guard') return 'guard@myapartment.local'
   if (v === 'admin') return 'admin@myapartment.local'
   const flat = v.replace(/\s/g, '')
-  return `flat-${flat}@myapartment.local`
+  return `${flat}@myapartment.local`
 }
 
 export default function Login() {
