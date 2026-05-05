@@ -26,19 +26,31 @@ export function useVoiceCall() {
   const timerRef        = useRef(null)
   const channelRef      = useRef(null)
 
-  // Get Agora token from Edge Function
+  // Get Agora token from Edge Function, fallback to no-token mode for testing
   const getToken = async (channelName) => {
-    const { data: { session } } = await supabase.auth.getSession()
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-agora-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ channelName, uid: 0 }),
-    })
-    if (!res.ok) throw new Error('Failed to get voice token')
-    return res.json()
+    const appId = import.meta.env.VITE_AGORA_APP_ID
+    if (!appId) throw new Error('VITE_AGORA_APP_ID not set in Vercel environment variables')
+
+    // Try Edge Function first (production)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-agora-token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ channelName, uid: 0 }),
+        })
+        if (res.ok) return res.json()
+      }
+    } catch (e) {
+      console.warn('Edge function unavailable, using no-token mode:', e.message)
+    }
+
+    // Fallback: no token (works in Agora testing mode — disable App Certificate in Agora console)
+    return { token: null, appId, channelName }
   }
 
   // Join a voice channel (called by both guard and resident)
