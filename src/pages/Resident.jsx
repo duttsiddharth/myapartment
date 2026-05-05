@@ -10,10 +10,18 @@ const fmt = (d) => new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 
 const fmtTimer = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 const FLOORS = [1,2,3,4,5,6,7,8,9,10,11,12,13]
 
+// Global reference to stop any playing ringtone
+let globalStopRing = null
+
 function createRingtone() {
+  // Stop any existing ringtone first
+  if (globalStopRing) { globalStopRing(); globalStopRing = null }
+
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)()
     let stopped = false
+    let vibrateInterval = null
+
     const playBeep = () => {
       if (stopped) return
       const osc1 = ctx.createOscillator()
@@ -28,13 +36,36 @@ function createRingtone() {
       osc1.stop(ctx.currentTime + 0.8); osc2.stop(ctx.currentTime + 0.8)
       setTimeout(() => { if (!stopped) playBeep() }, 1800)
     }
+
     playBeep()
+
     if (navigator.vibrate) {
-      const vi = setInterval(() => { if (!stopped) navigator.vibrate([500,500,500,500,500]) }, 2500)
-      return () => { stopped = true; clearInterval(vi); ctx.close(); navigator.vibrate(0) }
+      vibrateInterval = setInterval(() => {
+        if (!stopped) navigator.vibrate([500, 500, 500, 500, 500])
+      }, 2500)
     }
-    return () => { stopped = true; ctx.close() }
-  } catch (e) { return () => {} }
+
+    const stop = () => {
+      stopped = true
+      if (vibrateInterval) clearInterval(vibrateInterval)
+      try { navigator.vibrate(0) } catch {}
+      try { ctx.close() } catch {}
+      globalStopRing = null
+    }
+
+    globalStopRing = stop
+    return stop
+  } catch (e) {
+    return () => {}
+  }
+}
+
+// Stop ringtone when page is closed/hidden
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => { if (globalStopRing) globalStopRing() })
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && globalStopRing) globalStopRing()
+  })
 }
 
 export default function ResidentPage() {
@@ -63,6 +94,8 @@ export default function ResidentPage() {
 
   useEffect(() => {
     if (flat?.id) { loadMyLog(); loadAnnouncements(); loadAllFlats() }
+    // Cleanup ringtone on unmount
+    return () => { if (globalStopRing) globalStopRing() }
   }, [flat?.id])
 
   const loadMyLog = async () => {
