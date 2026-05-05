@@ -1,95 +1,29 @@
 -- ═══════════════════════════════════════════════════════════════════
--- MyApartment Intercom — Seed Data (200 Flats)
--- Run AFTER schema.sql and rls.sql
+-- MyApartment — 13 Floors × 15 Flats = 195 Flats (No Blocks/Towers)
+-- Run in Supabase SQL Editor AFTER schema.sql and rls.sql
 -- ═══════════════════════════════════════════════════════════════════
 
--- Sample resident names (rotated across 200 flats)
--- In production, admin updates these via the Admin Panel
+UPDATE public.profiles SET flat_id = NULL;
+DELETE FROM public.visitor_log;
+DELETE FROM public.calls;
+DELETE FROM public.flats;
 
-insert into public.flats (id, block, floor, unit, resident_name) values
-('A-101','A',1,1,'Sharma Family'),('A-102','A',1,2,'Verma Family'),('A-103','A',1,3,'Patel Family'),('A-104','A',1,4,'Gupta Family'),('A-105','A',1,5,'Singh Family'),
-('A-201','A',2,1,'Kumar Family'),('A-202','A',2,2,'Mehta Family'),('A-203','A',2,3,'Joshi Family'),('A-204','A',2,4,'Shah Family'),('A-205','A',2,5,'Reddy Family'),
-('A-301','A',3,1,'Nair Family'),('A-302','A',3,2,'Rao Family'),('A-303','A',3,3,'Pillai Family'),('A-304','A',3,4,'Iyer Family'),('A-305','A',3,5,'Menon Family'),
-('A-401','A',4,1,'Das Family'),('A-402','A',4,2,'Bose Family'),('A-403','A',4,3,'Chatterjee Family'),('A-404','A',4,4,'Roy Family'),('A-405','A',4,5,'Sen Family'),
-('A-501','A',5,1,'Mishra Family'),('A-502','A',5,2,'Tiwari Family'),('A-503','A',5,3,'Pandey Family'),('A-504','A',5,4,'Shukla Family'),('A-505','A',5,5,'Dubey Family'),
-('A-601','A',6,1,'Srivastava Family'),('A-602','A',6,2,'Yadav Family'),('A-603','A',6,3,'Agarwal Family'),('A-604','A',6,4,'Garg Family'),('A-605','A',6,5,'Bansal Family'),
-('A-701','A',7,1,'Malhotra Family'),('A-702','A',7,2,'Kapoor Family'),('A-703','A',7,3,'Khanna Family'),('A-704','A',7,4,'Chopra Family'),('A-705','A',7,5,'Bhatia Family'),
-('A-801','A',8,1,'Arora Family'),('A-802','A',8,2,'Sethi Family'),('A-803','A',8,3,'Grover Family'),('A-804','A',8,4,'Bajaj Family'),('A-805','A',8,5,'Mehra Family'),
-('A-901','A',9,1,'Anand Family'),('A-902','A',9,2,'Saxena Family'),('A-903','A',9,3,'Mathur Family'),('A-904','A',9,4,'Chauhan Family'),('A-905','A',9,5,'Rawat Family'),
-('A-1001','A',10,1,'Jain Family'),('A-1002','A',10,2,'Khatri Family'),('A-1003','A',10,3,'Lal Family'),('A-1004','A',10,4,'Chandra Family'),('A-1005','A',10,5,'Dixit Family'),
-('B-101','B',1,1,'Bhatt Family'),('B-102','B',1,2,'Trivedi Family'),('B-103','B',1,3,'Deshpande Family'),('B-104','B',1,4,'Patil Family'),('B-105','B',1,5,'Kulkarni Family'),
-('B-201','B',2,1,'Jha Family'),('B-202','B',2,2,'Thakur Family'),('B-203','B',2,3,'Chaudhary Family'),('B-204','B',2,4,'Rana Family'),('B-205','B',2,5,'Gill Family'),
-('B-301','B',3,1,'Ahuja Family'),('B-302','B',3,2,'Soni Family'),('B-303','B',3,3,'Taneja Family'),('B-304','B',3,4,'Walia Family'),('B-305','B',3,5,'Dhawan Family'),
-('B-401','B',4,1,'Mitra Family'),('B-402','B',4,2,'Ghosh Family'),('B-403','B',4,3,'Mukherjee Family'),('B-404','B',4,4,'Banerjee Family'),('B-405','B',4,5,'Dutta Family'),
-('B-501','B',5,1,'Chakraborty Family'),('B-502','B',5,2,'Biswas Family'),('B-503','B',5,3,'Mondal Family'),('B-504','B',5,4,'Basu Family'),('B-505','B',5,5,'Ganguly Family'),
-('B-601','B',6,1,'Paul Family'),('B-602','B',6,2,'Sarkar Family'),('B-603','B',6,3,'Mazumdar Family'),('B-604','B',6,4,'Saha Family'),('B-605','B',6,5,'Chosh Family'),
-('B-701','B',7,1,'Rajan Family'),('B-702','B',7,2,'Krishnan Family'),('B-703','B',7,3,'Subramaniam Family'),('B-704','B',7,4,'Venkatesh Family'),('B-705','B',7,5,'Balaji Family'),
-('B-801','B',8,1,'Sundaram Family'),('B-802','B',8,2,'Natarajan Family'),('B-803','B',8,3,'Murugan Family'),('B-804','B',8,4,'Annamalai Family'),('B-805','B',8,5,'Selvam Family'),
-('B-901','B',9,1,'Ramesh Family'),('B-902','B',9,2,'Suresh Family'),('B-903','B',9,3,'Ganesh Family'),('B-904','B',9,4,'Mahesh Family'),('B-905','B',9,5,'Naresh Family'),
-('B-1001','B',10,1,'Balan Family'),('B-1002','B',10,2,'Mohan Family'),('B-1003','B',10,3,'Gopal Family'),('B-1004','B',10,4,'Raman Family'),('B-1005','B',10,5,'Srinivas Family'),
-('C-101','C',1,1,'Desai Family'),('C-102','C',1,2,'Modi Family'),('C-103','C',1,3,'Mehta Family'),('C-104','C',1,4,'Thakkar Family'),('C-105','C',1,5,'Vora Family'),
-('C-201','C',2,1,'Parekh Family'),('C-202','C',2,2,'Bhavsar Family'),('C-203','C',2,3,'Dalal Family'),('C-204','C',2,4,'Contractor Family'),('C-205','C',2,5,'Engineer Family'),
-('C-301','C',3,1,'Sheth Family'),('C-302','C',3,2,'Savla Family'),('C-303','C',3,3,'Kapadia Family'),('C-304','C',3,4,'Dedhia Family'),('C-305','C',3,5,'Sanghvi Family'),
-('C-401','C',4,1,'Choksi Family'),('C-402','C',4,2,'Jhaveri Family'),('C-403','C',4,3,'Khatri Family'),('C-404','C',4,4,'Punjabi Family'),('C-405','C',4,5,'Sindhi Family'),
-('C-501','C',5,1,'Kohli Family'),('C-502','C',5,2,'Tandon Family'),('C-503','C',5,3,'Bahl Family'),('C-504','C',5,4,'Narang Family'),('C-505','C',5,5,'Sood Family'),
-('C-601','C',6,1,'Sabharwal Family'),('C-602','C',6,2,'Gulati Family'),('C-603','C',6,3,'Chhabra Family'),('C-604','C',6,4,'Kochhar Family'),('C-605','C',6,5,'Sehgal Family'),
-('C-701','C',7,1,'Madan Family'),('C-702','C',7,2,'Wadhwa Family'),('C-703','C',7,3,'Talwar Family'),('C-704','C',7,4,'Batra Family'),('C-705','C',7,5,'Uppal Family'),
-('C-801','C',8,1,'Chandhok Family'),('C-802','C',8,2,'Bindra Family'),('C-803','C',8,3,'Kalra Family'),('C-804','C',8,4,'Behl Family'),('C-805','C',8,5,'Aneja Family'),
-('C-901','C',9,1,'Dang Family'),('C-902','C',9,2,'Rathi Family'),('C-903','C',9,3,'Oswal Family'),('C-904','C',9,4,'Agrawal Family'),('C-905','C',9,5,'Kedia Family'),
-('C-1001','C',10,1,'Murarka Family'),('C-1002','C',10,2,'Bagri Family'),('C-1003','C',10,3,'Sureka Family'),('C-1004','C',10,4,'Dalmia Family'),('C-1005','C',10,5,'Birla Family'),
-('D-101','D',1,1,'Nanda Family'),('D-102','D',1,2,'Khosla Family'),('D-103','D',1,3,'Bedi Family'),('D-104','D',1,4,'Setia Family'),('D-105','D',1,5,'Sarin Family'),
-('D-201','D',2,1,'Mehra Family'),('D-202','D',2,2,'Bakshi Family'),('D-203','D',2,3,'Bhasin Family'),('D-204','D',2,4,'Thapar Family'),('D-205','D',2,5,'Lamba Family'),
-('D-301','D',3,1,'Popli Family'),('D-302','D',3,2,'Bajwa Family'),('D-303','D',3,3,'Cheema Family'),('D-304','D',3,4,'Sodhi Family'),('D-305','D',3,5,'Sandhu Family'),
-('D-401','D',4,1,'Grewal Family'),('D-402','D',4,2,'Dhaliwal Family'),('D-403','D',4,3,'Sidhu Family'),('D-404','D',4,4,'Johal Family'),('D-405','D',4,5,'Virk Family'),
-('D-501','D',5,1,'Sekhon Family'),('D-502','D',5,2,'Boparai Family'),('D-503','D',5,3,'Dhindsa Family'),('D-504','D',5,4,'Sangha Family'),('D-505','D',5,5,'Brar Family'),
-('D-601','D',6,1,'Aulakh Family'),('D-602','D',6,2,'Hundal Family'),('D-603','D',6,3,'Kang Family'),('D-604','D',6,4,'Hayer Family'),('D-605','D',6,5,'Maan Family'),
-('D-701','D',7,1,'Chadha Family'),('D-702','D',7,2,'Anand Family'),('D-703','D',7,3,'Bhandari Family'),('D-704','D',7,4,'Dhir Family'),('D-705','D',7,5,'Vij Family'),
-('D-801','D',8,1,'Raina Family'),('D-802','D',8,2,'Tickoo Family'),('D-803','D',8,3,'Kaul Family'),('D-804','D',8,4,'Dhar Family'),('D-805','D',8,5,'Hangloo Family'),
-('D-901','D',9,1,'Zutshi Family'),('D-902','D',9,2,'Matoo Family'),('D-903','D',9,3,'Pandita Family'),('D-904','D',9,4,'Sapru Family'),('D-905','D',9,5,'Wakhlu Family'),
-('D-1001','D',10,1,'Koul Family'),('D-1002','D',10,2,'Ganjoo Family'),('D-1003','D',10,3,'Raina Family'),('D-1004','D',10,4,'Bhat Family'),('D-1005','D',10,5,'Razdan Family')
-on conflict (id) do nothing;
+-- Flat ID = floor + 2-digit unit e.g. Floor 1 Flat 1 = "101", Floor 13 Flat 15 = "1315"
+INSERT INTO public.flats (id, block, floor, unit, resident_name) VALUES
+('101','NA',1,1,'Vacant'),('102','NA',1,2,'Vacant'),('103','NA',1,3,'Vacant'),('104','NA',1,4,'Vacant'),('105','NA',1,5,'Vacant'),('106','NA',1,6,'Vacant'),('107','NA',1,7,'Vacant'),('108','NA',1,8,'Vacant'),('109','NA',1,9,'Vacant'),('110','NA',1,10,'Vacant'),('111','NA',1,11,'Vacant'),('112','NA',1,12,'Vacant'),('113','NA',1,13,'Vacant'),('114','NA',1,14,'Vacant'),('115','NA',1,15,'Vacant'),
+('201','NA',2,1,'Vacant'),('202','NA',2,2,'Vacant'),('203','NA',2,3,'Vacant'),('204','NA',2,4,'Vacant'),('205','NA',2,5,'Vacant'),('206','NA',2,6,'Vacant'),('207','NA',2,7,'Vacant'),('208','NA',2,8,'Vacant'),('209','NA',2,9,'Vacant'),('210','NA',2,10,'Vacant'),('211','NA',2,11,'Vacant'),('212','NA',2,12,'Vacant'),('213','NA',2,13,'Vacant'),('214','NA',2,14,'Vacant'),('215','NA',2,15,'Vacant'),
+('301','NA',3,1,'Vacant'),('302','NA',3,2,'Vacant'),('303','NA',3,3,'Vacant'),('304','NA',3,4,'Vacant'),('305','NA',3,5,'Vacant'),('306','NA',3,6,'Vacant'),('307','NA',3,7,'Vacant'),('308','NA',3,8,'Vacant'),('309','NA',3,9,'Vacant'),('310','NA',3,10,'Vacant'),('311','NA',3,11,'Vacant'),('312','NA',3,12,'Vacant'),('313','NA',3,13,'Vacant'),('314','NA',3,14,'Vacant'),('315','NA',3,15,'Vacant'),
+('401','NA',4,1,'Vacant'),('402','NA',4,2,'Vacant'),('403','NA',4,3,'Vacant'),('404','NA',4,4,'Vacant'),('405','NA',4,5,'Vacant'),('406','NA',4,6,'Vacant'),('407','NA',4,7,'Vacant'),('408','NA',4,8,'Vacant'),('409','NA',4,9,'Vacant'),('410','NA',4,10,'Vacant'),('411','NA',4,11,'Vacant'),('412','NA',4,12,'Vacant'),('413','NA',4,13,'Vacant'),('414','NA',4,14,'Vacant'),('415','NA',4,15,'Vacant'),
+('501','NA',5,1,'Vacant'),('502','NA',5,2,'Vacant'),('503','NA',5,3,'Vacant'),('504','NA',5,4,'Vacant'),('505','NA',5,5,'Vacant'),('506','NA',5,6,'Vacant'),('507','NA',5,7,'Vacant'),('508','NA',5,8,'Vacant'),('509','NA',5,9,'Vacant'),('510','NA',5,10,'Vacant'),('511','NA',5,11,'Vacant'),('512','NA',5,12,'Vacant'),('513','NA',5,13,'Vacant'),('514','NA',5,14,'Vacant'),('515','NA',5,15,'Vacant'),
+('601','NA',6,1,'Vacant'),('602','NA',6,2,'Vacant'),('603','NA',6,3,'Vacant'),('604','NA',6,4,'Vacant'),('605','NA',6,5,'Vacant'),('606','NA',6,6,'Vacant'),('607','NA',6,7,'Vacant'),('608','NA',6,8,'Vacant'),('609','NA',6,9,'Vacant'),('610','NA',6,10,'Vacant'),('611','NA',6,11,'Vacant'),('612','NA',6,12,'Vacant'),('613','NA',6,13,'Vacant'),('614','NA',6,14,'Vacant'),('615','NA',6,15,'Vacant'),
+('701','NA',7,1,'Vacant'),('702','NA',7,2,'Vacant'),('703','NA',7,3,'Vacant'),('704','NA',7,4,'Vacant'),('705','NA',7,5,'Vacant'),('706','NA',7,6,'Vacant'),('707','NA',7,7,'Vacant'),('708','NA',7,8,'Vacant'),('709','NA',7,9,'Vacant'),('710','NA',7,10,'Vacant'),('711','NA',7,11,'Vacant'),('712','NA',7,12,'Vacant'),('713','NA',7,13,'Vacant'),('714','NA',7,14,'Vacant'),('715','NA',7,15,'Vacant'),
+('801','NA',8,1,'Vacant'),('802','NA',8,2,'Vacant'),('803','NA',8,3,'Vacant'),('804','NA',8,4,'Vacant'),('805','NA',8,5,'Vacant'),('806','NA',8,6,'Vacant'),('807','NA',8,7,'Vacant'),('808','NA',8,8,'Vacant'),('809','NA',8,9,'Vacant'),('810','NA',8,10,'Vacant'),('811','NA',8,11,'Vacant'),('812','NA',8,12,'Vacant'),('813','NA',8,13,'Vacant'),('814','NA',8,14,'Vacant'),('815','NA',8,15,'Vacant'),
+('901','NA',9,1,'Vacant'),('902','NA',9,2,'Vacant'),('903','NA',9,3,'Vacant'),('904','NA',9,4,'Vacant'),('905','NA',9,5,'Vacant'),('906','NA',9,6,'Vacant'),('907','NA',9,7,'Vacant'),('908','NA',9,8,'Vacant'),('909','NA',9,9,'Vacant'),('910','NA',9,10,'Vacant'),('911','NA',9,11,'Vacant'),('912','NA',9,12,'Vacant'),('913','NA',9,13,'Vacant'),('914','NA',9,14,'Vacant'),('915','NA',9,15,'Vacant'),
+('1001','NA',10,1,'Vacant'),('1002','NA',10,2,'Vacant'),('1003','NA',10,3,'Vacant'),('1004','NA',10,4,'Vacant'),('1005','NA',10,5,'Vacant'),('1006','NA',10,6,'Vacant'),('1007','NA',10,7,'Vacant'),('1008','NA',10,8,'Vacant'),('1009','NA',10,9,'Vacant'),('1010','NA',10,10,'Vacant'),('1011','NA',10,11,'Vacant'),('1012','NA',10,12,'Vacant'),('1013','NA',10,13,'Vacant'),('1014','NA',10,14,'Vacant'),('1015','NA',10,15,'Vacant'),
+('1101','NA',11,1,'Vacant'),('1102','NA',11,2,'Vacant'),('1103','NA',11,3,'Vacant'),('1104','NA',11,4,'Vacant'),('1105','NA',11,5,'Vacant'),('1106','NA',11,6,'Vacant'),('1107','NA',11,7,'Vacant'),('1108','NA',11,8,'Vacant'),('1109','NA',11,9,'Vacant'),('1110','NA',11,10,'Vacant'),('1111','NA',11,11,'Vacant'),('1112','NA',11,12,'Vacant'),('1113','NA',11,13,'Vacant'),('1114','NA',11,14,'Vacant'),('1115','NA',11,15,'Vacant'),
+('1201','NA',12,1,'Vacant'),('1202','NA',12,2,'Vacant'),('1203','NA',12,3,'Vacant'),('1204','NA',12,4,'Vacant'),('1205','NA',12,5,'Vacant'),('1206','NA',12,6,'Vacant'),('1207','NA',12,7,'Vacant'),('1208','NA',12,8,'Vacant'),('1209','NA',12,9,'Vacant'),('1210','NA',12,10,'Vacant'),('1211','NA',12,11,'Vacant'),('1212','NA',12,12,'Vacant'),('1213','NA',12,13,'Vacant'),('1214','NA',12,14,'Vacant'),('1215','NA',12,15,'Vacant'),
+('1301','NA',13,1,'Vacant'),('1302','NA',13,2,'Vacant'),('1303','NA',13,3,'Vacant'),('1304','NA',13,4,'Vacant'),('1305','NA',13,5,'Vacant'),('1306','NA',13,6,'Vacant'),('1307','NA',13,7,'Vacant'),('1308','NA',13,8,'Vacant'),('1309','NA',13,9,'Vacant'),('1310','NA',13,10,'Vacant'),('1311','NA',13,11,'Vacant'),('1312','NA',13,12,'Vacant'),('1313','NA',13,13,'Vacant'),('1314','NA',13,14,'Vacant'),('1315','NA',13,15,'Vacant')
+ON CONFLICT (id) DO NOTHING;
 
--- ── HOW TO CREATE USERS ───────────────────────────────────────────────
--- After running this SQL, create users via Supabase Auth Dashboard or API:
---
--- 1. Admin:  admin@myapartment.com  | set strong password | role = 'admin'
--- 2. Guard:  guard@myapartment.com  | set strong password | role = 'guard'
--- 3. Residents: resident@flat.com  | role = 'resident' | flat_id = 'A-101'
---
--- Then update their profile rows:
--- UPDATE public.profiles SET role = 'admin', name = 'Society Admin' WHERE id = '<user-uuid>';
--- UPDATE public.profiles SET role = 'guard', name = 'Gate Security' WHERE id = '<user-uuid>';
--- UPDATE public.profiles SET role = 'resident', name = 'Sharma Family', flat_id = 'A-101' WHERE id = '<user-uuid>';
-
-
--- ══════════════════════════════════════════════════════════════════════
--- USER CREATION GUIDE (new flat-number login system)
--- ══════════════════════════════════════════════════════════════════════
---
--- Email format used internally (user never sees this):
---   Guard  → guard@myapartment.local
---   Admin  → admin@myapartment.local
---   Flat A-101 resident → flat-a-101@myapartment.local
---   Flat B-203 resident → flat-b-203@myapartment.local
---
--- STEP 1: Create users in Supabase Auth → Users → Add User
---   Use the internal email above + any PIN (minimum 4 digits) as password
---   Example:
---     Email: guard@myapartment.local    Password: 1234
---     Email: admin@myapartment.local    Password: 5678
---     Email: flat-a-101@myapartment.local  Password: 4321
---
--- STEP 2: After creating each user, run this SQL with their UUID:
---
--- Guard:
--- UPDATE public.profiles SET role='guard', name='Gate Security' WHERE id='GUARD-UUID';
---
--- Admin:
--- UPDATE public.profiles SET role='admin', name='RWA Admin' WHERE id='ADMIN-UUID';
---
--- Resident (flat A-101):
--- UPDATE public.profiles SET role='resident', name='Sharma Family', flat_id='A-101' WHERE id='RESIDENT-UUID';
---
--- ═══ BULK CREATE RESIDENTS (example for Block A) ═════════════════════
--- Repeat pattern for each flat you want to onboard.
--- The resident logs in with: Flat Number = A-101, PIN = 1234 (or whatever you set)
+-- Verify
+SELECT floor, count(*) as flats FROM public.flats GROUP BY floor ORDER BY floor;
