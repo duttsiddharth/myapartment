@@ -1,6 +1,10 @@
 import { useState, useRef, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 
+// ⚠ REPLACE THIS WITH YOUR AGORA APP ID FROM console.agora.io
+// Get it from: console.agora.io → your project → App ID
+const HARDCODED_AGORA_APP_ID = 'cb1bb617d12246d593d7399a61754d74'
+
 // Lazy-load Agora SDK to avoid SSR issues
 let AgoraRTC = null
 const getAgora = async () => {
@@ -14,7 +18,6 @@ const getAgora = async () => {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
-const AGORA_APP_ID = import.meta.env.VITE_AGORA_APP_ID || 'cb1bb617d12246d593d7399a61754d74'
 
 export function useVoiceCall() {
   const [callState, setCallState] = useState('idle') // idle | calling | connected | ended
@@ -29,7 +32,10 @@ export function useVoiceCall() {
 
   // Get Agora token from Edge Function, fallback to no-token mode for testing
   const getToken = async (channelName) => {
-    const appId = AGORA_APP_ID)
+    const appId = import.meta.env.VITE_AGORA_APP_ID || HARDCODED_AGORA_APP_ID
+    if (!appId || appId === 'REPLACE_WITH_YOUR_AGORA_APP_ID') {
+      throw new Error('Please replace HARDCODED_AGORA_APP_ID in useVoiceCall.js with your Agora App ID')
+    }
 
     // Try Edge Function first (production)
     try {
