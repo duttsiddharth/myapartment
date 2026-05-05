@@ -112,7 +112,7 @@ export default function ResidentPage() {
     setActiveCall({ ...incomingCall, status: 'connected' })
     setIncomingCall(null)
     setCallTimer(0)
-    if (incomingCall.channel_name) voice.joinCall(incomingCall.channel_name).catch(console.error)
+    if (incomingCall.channel_name) voice.answerCall(incomingCall.channel_name).catch(console.error)
   }
 
   const respondToCall = async (status) => {
