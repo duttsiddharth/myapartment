@@ -14,6 +14,7 @@ const getAgora = async () => {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+const AGORA_APP_ID = import.meta.env.VITE_AGORA_APP_ID || 'cb1bb617d12246d593d7399a61754d74'
 
 export function useVoiceCall() {
   const [callState, setCallState] = useState('idle') // idle | calling | connected | ended
@@ -28,8 +29,7 @@ export function useVoiceCall() {
 
   // Get Agora token from Edge Function, fallback to no-token mode for testing
   const getToken = async (channelName) => {
-    const appId = import.meta.env.VITE_AGORA_APP_ID
-    if (!appId) throw new Error('VITE_AGORA_APP_ID not set in Vercel environment variables')
+    const appId = AGORA_APP_ID)
 
     // Try Edge Function first (production)
     try {
