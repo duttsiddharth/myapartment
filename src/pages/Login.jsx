@@ -10,7 +10,7 @@ export function toInternalEmail(input) {
   if (v === 'guard') return 'guard@myapartment.local'
   if (v === 'admin') return 'admin@myapartment.local'
   const flat = v.replace(/\s/g, '')
-  return `${flat}@myapartment.local`
+  return `flat-${flat}@myapartment.local`
 }
 
 export default function Login() {
