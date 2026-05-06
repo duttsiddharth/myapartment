@@ -179,13 +179,15 @@ export default function ResidentPage() {
     const channelName = `intercom-${flat.id}-${target.id}-${Date.now()}`
     setCallTarget(target)
 
-    // Use caller's flat_id so foreign key constraint is satisfied
-    // Target info stored in visitor_purpose and resident_name
+    // For resident-to-resident: use target flat_id so target's subscription fires
+    // For resident-to-guard: guard listens via separate subscription (not flat_id based)
+    const targetFlatId = target.role === 'resident' ? target.id : flat.id
+
     const { data, error } = await supabase.from('calls').insert({
-      flat_id: flat.id,
-      resident_name: flat.resident_name,
-      visitor_name: target.name,
-      visitor_purpose: `intercom-to:${target.id}:${target.role}`,
+      flat_id: targetFlatId,
+      resident_name: target.name,
+      visitor_name: flat.resident_name,
+      visitor_purpose: `intercom-to:${target.id}:${target.role}:from:${flat.id}`,
       status: 'ringing',
       initiated_by: profile.id,
       channel_name: channelName,
@@ -548,6 +550,5 @@ export default function ResidentPage() {
         </div>
       )}
     </div>
-    
   )
 }

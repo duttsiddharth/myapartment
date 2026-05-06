@@ -69,7 +69,7 @@ export default function GuardPage() {
   // Listen for intercom calls FROM residents TO guard
   useEffect(() => {
     const channel = supabase
-      .channel('guard-intercom-calls')
+      .channel(`guard-intercom-${Math.random().toString(36).slice(2,6)}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -77,9 +77,8 @@ export default function GuardPage() {
         filter: `visitor_purpose=like.intercom-to:guard*`,
       }, (payload) => {
         const call = payload.new
-        if (call.status === 'ringing') {
-          setIncomingIntercom(call)
-        }
+        console.log('Intercom call from resident:', call)
+        if (call.status === 'ringing') setIncomingIntercom(call)
       })
       .subscribe()
     return () => supabase.removeChannel(channel)
@@ -476,6 +475,5 @@ export default function GuardPage() {
         </div>
       )}
     </div>
-    
   )
 }
