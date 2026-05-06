@@ -90,7 +90,8 @@ export function useVoiceCall() {
       stream.getTracks().forEach(t => pc.addTrack(t, stream))
 
       // Guard sends on 'guard->{channelName}', receives on 'resident->{channelName}'
-      const sendCh = supabase.channel(`guard-${channelName}`)
+      const uid = Math.random().toString(36).slice(2, 8)
+      const sendCh = supabase.channel(`guard-${channelName}-${uid}`)
       const recvCh = supabase.channel(`resident-${channelName}`)
       sendChannelRef.current = sendCh
       recvChannelRef.current = recvCh
@@ -157,7 +158,8 @@ export function useVoiceCall() {
       stream.getTracks().forEach(t => pc.addTrack(t, stream))
 
       // Resident sends on 'resident->{channelName}', receives on 'guard->{channelName}'
-      const sendCh = supabase.channel(`resident-${channelName}`)
+      const uid = Math.random().toString(36).slice(2, 8)
+      const sendCh = supabase.channel(`resident-${channelName}-${uid}`)
       const recvCh = supabase.channel(`guard-${channelName}`)
       sendChannelRef.current = sendCh
       recvChannelRef.current = recvCh
