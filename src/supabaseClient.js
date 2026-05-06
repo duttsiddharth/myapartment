@@ -16,4 +16,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
   realtime: {
     params: { eventsPerSecond: 10 },
   },
+  global: {
+    headers: { 'x-my-custom-header': 'myapartment' },
+  },
 })
