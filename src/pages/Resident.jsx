@@ -116,7 +116,17 @@ export default function ResidentPage() {
     setIncomingCall(call)
     if (stopRingRef.current) stopRingRef.current()
     stopRingRef.current = createRingtone()
+    // Auto stop ring after 30 seconds if not answered
+    setTimeout(() => { if (stopRingRef.current) stopRingRef.current() }, 30000)
   })
+
+  // Stop ring when incoming call state clears
+  useEffect(() => {
+    if (!incomingCall && stopRingRef.current) {
+      stopRingRef.current()
+      stopRingRef.current = null
+    }
+  }, [incomingCall])
 
   useAnnouncements((ann) => {
     setAnnouncements(prev => [ann, ...prev])
