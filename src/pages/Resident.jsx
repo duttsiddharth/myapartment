@@ -179,11 +179,13 @@ export default function ResidentPage() {
     const channelName = `intercom-${flat.id}-${target.id}-${Date.now()}`
     setCallTarget(target)
 
+    // Use caller's flat_id so foreign key constraint is satisfied
+    // Target info stored in visitor_purpose and resident_name
     const { data, error } = await supabase.from('calls').insert({
-      flat_id: target.id,           // who we're calling
-      resident_name: target.name,
-      visitor_name: flat.resident_name,
-      visitor_purpose: `Intercom from Flat ${flat.id}`,
+      flat_id: flat.id,
+      resident_name: flat.resident_name,
+      visitor_name: target.name,
+      visitor_purpose: `intercom-to:${target.id}:${target.role}`,
       status: 'ringing',
       initiated_by: profile.id,
       channel_name: channelName,
@@ -193,6 +195,8 @@ export default function ResidentPage() {
       setOutgoingCall({ ...data, status: 'ringing' })
       voice.joinCall(channelName).catch(console.error)
       setCallTimer(0)
+    } else {
+      console.error('placeCall error:', error)
     }
   }
 

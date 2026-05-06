@@ -25,6 +25,7 @@ export default function GuardPage() {
   const [callTimer, setCallTimer]   = useState(0)
   const [annText, setAnnText]       = useState('')
   const [annType, setAnnType]       = useState('info')
+  const [incomingIntercom, setIncomingIntercom] = useState(null)
   const [aiMessages, setAiMessages] = useState([{ role: 'assistant', content: "Hi! I'm SecureAI. Ask me about any flat, visitor procedure, or security policy." }])
   const [aiInput, setAiInput]       = useState('')
   const [aiLoading, setAiLoading]   = useState(false)
@@ -64,6 +65,25 @@ export default function GuardPage() {
       }
     }
   })
+
+  // Listen for intercom calls FROM residents TO guard
+  useEffect(() => {
+    const channel = supabase
+      .channel('guard-intercom-calls')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'calls',
+        filter: `visitor_purpose=like.intercom-to:guard*`,
+      }, (payload) => {
+        const call = payload.new
+        if (call.status === 'ringing') {
+          setIncomingIntercom(call)
+        }
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [])
 
   useEmergencyAlerts('guard', (alert) => {
     setEmergencies(prev => [alert, ...prev])
@@ -433,6 +453,28 @@ export default function GuardPage() {
           </button>
         ))}
       </div>
+      {/* Incoming Intercom Call from Resident */}
+      {incomingIntercom && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="call-avatar ringing"><Icon name="home" size={32} /></div>
+            <div className="call-flat">Flat {incomingIntercom.flat_id}</div>
+            <div className="call-resident">{incomingIntercom.resident_name}</div>
+            <div className="call-status">📞 Intercom call from resident</div>
+            <div className="call-actions">
+              <button className="call-btn reject" onClick={() => {
+                supabase.from('calls').update({ status: 'ended' }).eq('id', incomingIntercom.id)
+                setIncomingIntercom(null)
+              }}><Icon name="phoneOff" size={24} /></button>
+              <button className="call-btn accept" onClick={() => {
+                voice.answerCall(incomingIntercom.channel_name).catch(console.error)
+                setActiveCall({ ...incomingIntercom, status: 'connected' })
+                setIncomingIntercom(null)
+              }}><Icon name="phone" size={24} /></button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
