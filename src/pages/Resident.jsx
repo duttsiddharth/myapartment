@@ -548,5 +548,6 @@ export default function ResidentPage() {
         </div>
       )}
     </div>
+    
   )
 }
