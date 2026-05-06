@@ -34,8 +34,8 @@ export function useVoiceCall() {
       try { document.body.removeChild(remoteAudioRef.current) } catch {}
       remoteAudioRef.current = null
     }
-    try { supabase.removeChannel(sendChannelRef.current) } catch {}
-    try { supabase.removeChannel(recvChannelRef.current) } catch {}
+    try { if (sendChannelRef.current) supabase.removeChannel(sendChannelRef.current) } catch {}
+    try { if (recvChannelRef.current) supabase.removeChannel(recvChannelRef.current) } catch {}
     sendChannelRef.current = null
     recvChannelRef.current = null
     storedOfferRef.current = null
