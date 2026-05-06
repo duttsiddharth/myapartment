@@ -74,16 +74,19 @@ export function useVoiceCall() {
   }, [])
 
   const setupAudio = (stream) => {
-    if (!remoteAudioRef.current) {
-      const audio = document.createElement('audio')
-      audio.autoplay = true
-      audio.playsInline = true
-      audio.style.display = 'none'
-      document.body.appendChild(audio)
-      remoteAudioRef.current = audio
+    console.log('Setting up audio stream...')
+    const audio = remoteAudioRef.current
+    if (!audio) {
+      console.error('No audio element found!')
+      return
     }
-    remoteAudioRef.current.srcObject = stream
-    remoteAudioRef.current.play().catch(console.error)
+    // Clear the silence placeholder and set real stream
+    audio.srcObject = stream
+    audio.muted = false
+    audio.volume = 1.0
+    audio.play()
+      .then(() => console.log('🔊 Audio playing!'))
+      .catch(e => console.error('Audio play failed:', e))
     setCallState('connected')
     clearInterval(timerRef.current)
     timerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000)
@@ -127,6 +130,18 @@ export function useVoiceCall() {
       setError(null)
       setCallState('calling')
       channelRef.current = channelName
+
+      // Pre-create and unlock audio during user gesture
+      const audio = document.createElement('audio')
+      audio.autoplay = true
+      audio.playsInline = true
+      audio.muted = false
+      audio.volume = 1.0
+      audio.style.cssText = 'position:fixed;bottom:0;left:0;width:1px;height:1px;opacity:0.01;'
+      document.body.appendChild(audio)
+      remoteAudioRef.current = audio
+      audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
+      audio.play().catch(() => {})
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       localStreamRef.current = stream
@@ -172,6 +187,20 @@ export function useVoiceCall() {
       setError(null)
       setCallState('calling')
       channelRef.current = channelName
+
+      // Pre-create audio element NOW during user gesture (tap Accept)
+      // This is critical — Chrome blocks audio.play() unless initiated by user gesture
+      const audio = document.createElement('audio')
+      audio.autoplay = true
+      audio.playsInline = true
+      audio.muted = false
+      audio.volume = 1.0
+      audio.style.cssText = 'position:fixed;bottom:0;left:0;width:1px;height:1px;opacity:0.01;'
+      document.body.appendChild(audio)
+      remoteAudioRef.current = audio
+      // Play silence to unlock audio context during user gesture
+      audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
+      audio.play().catch(() => {})
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       localStreamRef.current = stream
