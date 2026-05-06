@@ -7,6 +7,35 @@ const ICE_SERVERS = [
   { urls: 'stun:global.stun.twilio.com:3478' },
 ]
 
+// Send a signal via Supabase DB (reliable, uses postgres_changes)
+const sendSignal = async (channel, type, payload) => {
+  const { error } = await supabase.from('webrtc_signals').insert({
+    channel, type, payload
+  })
+  if (error) console.error('Signal send error:', error)
+  else console.log(`Signal sent: ${type}`)
+}
+
+// Subscribe to signals for a channel, filtered by type
+const subscribeSignals = (channel, types, handler) => {
+  const sub = supabase
+    .channel(`signals-${channel}-${Math.random().toString(36).slice(2,8)}`)
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'webrtc_signals',
+      filter: `channel=eq.${channel}`,
+    }, (payload) => {
+      const sig = payload.new
+      if (types.includes(sig.type)) {
+        console.log(`Signal received: ${sig.type}`)
+        handler(sig.type, sig.payload)
+      }
+    })
+    .subscribe((status) => console.log(`Signal sub [${channel}]:`, status))
+  return sub
+}
+
 export function useVoiceCall() {
   const [callState, setCallState]       = useState('idle')
   const [isMuted, setIsMuted]           = useState(false)
@@ -16,10 +45,10 @@ export function useVoiceCall() {
   const pcRef          = useRef(null)
   const localStreamRef = useRef(null)
   const remoteAudioRef = useRef(null)
-  const sendChannelRef = useRef(null)  // channel this peer sends on
-  const recvChannelRef = useRef(null)  // channel this peer receives on
+  const subRef         = useRef(null)
   const timerRef       = useRef(null)
   const storedOfferRef = useRef(null)
+  const channelRef     = useRef(null)
 
   const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
 
@@ -34,11 +63,14 @@ export function useVoiceCall() {
       try { document.body.removeChild(remoteAudioRef.current) } catch {}
       remoteAudioRef.current = null
     }
-    try { if (sendChannelRef.current) supabase.removeChannel(sendChannelRef.current) } catch {}
-    try { if (recvChannelRef.current) supabase.removeChannel(recvChannelRef.current) } catch {}
-    sendChannelRef.current = null
-    recvChannelRef.current = null
+    try { supabase.removeChannel(subRef.current) } catch {}
+    subRef.current = null
     storedOfferRef.current = null
+    // Clean up old signals
+    if (channelRef.current) {
+      supabase.from('webrtc_signals').delete().eq('channel', channelRef.current).then(() => {})
+      channelRef.current = null
+    }
   }, [])
 
   const setupAudio = (stream) => {
@@ -57,84 +89,73 @@ export function useVoiceCall() {
     timerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000)
   }
 
-  const createPC = useCallback(() => {
+  const createPC = useCallback((channelName, role) => {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
     pcRef.current = pc
+
+    const iceType = role === 'guard' ? 'ice_guard' : 'ice_resident'
+    pc.onicecandidate = ({ candidate }) => {
+      if (candidate) {
+        sendSignal(channelName, iceType, { candidate: candidate.toJSON() })
+      }
+    }
+
     pc.ontrack = (e) => {
-      console.log('🔊 Remote audio!')
+      console.log('🔊 Remote audio received!')
       setupAudio(e.streams[0])
     }
+
     pc.onconnectionstatechange = () => {
-      console.log('PC:', pc.connectionState)
+      console.log('PC state:', pc.connectionState)
       if (pc.connectionState === 'connected') {
         setCallState('connected')
         clearInterval(timerRef.current)
         timerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000)
       }
-      if (['failed','disconnected'].includes(pc.connectionState)) endCall()
+      if (['failed', 'disconnected'].includes(pc.connectionState)) {
+        endCall()
+      }
     }
+
     return pc
   }, [])
 
-  // ── GUARD: creates offer, listens for resident_ready ──────────────
+  // ── GUARD ─────────────────────────────────────────────────────────
   const joinCall = useCallback(async (channelName) => {
     try {
       cleanup()
       setError(null)
       setCallState('calling')
+      channelRef.current = channelName
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       localStreamRef.current = stream
 
-      const pc = createPC()
+      const pc = createPC(channelName, 'guard')
       stream.getTracks().forEach(t => pc.addTrack(t, stream))
 
-      // Guard sends on 'guard->{channelName}', receives on 'resident->{channelName}'
-      const uid = Math.random().toString(36).slice(2, 8)
-      const sendCh = supabase.channel(`guard-${channelName}-${uid}`)
-      const recvCh = supabase.channel(`resident-${channelName}`)
-      sendChannelRef.current = sendCh
-      recvChannelRef.current = recvCh
-
-      // ICE candidates → send to resident channel
-      pc.onicecandidate = ({ candidate }) => {
-        if (!candidate) return
-        sendCh.send({
-          type: 'broadcast', event: 'ice',
-          payload: { candidate: candidate.toJSON() }
-        }).catch(console.error)
-      }
-
-      // Create offer immediately
+      // Create and store offer
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
       storedOfferRef.current = { type: offer.type, sdp: offer.sdp }
       console.log('Offer ready ✅')
 
-      // Listen on resident channel for: ready signal, answer, ICE
-      recvCh
-        .on('broadcast', { event: 'ready' }, async () => {
-          console.log('Resident ready → sending offer')
-          await sendCh.send({
-            type: 'broadcast', event: 'offer',
-            payload: { sdp: storedOfferRef.current }
-          })
-          console.log('Offer sent ✅')
-        })
-        .on('broadcast', { event: 'answer' }, async ({ payload }) => {
-          console.log('Got answer ✅')
+      // Subscribe to incoming signals: ready, answer, ice_resident
+      subRef.current = subscribeSignals(channelName, ['ready', 'answer', 'ice_resident'], async (type, payload) => {
+        if (type === 'ready') {
+          console.log('Resident ready → sending offer via DB')
+          await sendSignal(channelName, 'offer', storedOfferRef.current)
+        }
+        if (type === 'answer') {
           if (pc.signalingState === 'have-local-offer') {
-            await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp))
+            await pc.setRemoteDescription(new RTCSessionDescription(payload))
+            console.log('Remote description set ✅')
           }
-        })
-        .on('broadcast', { event: 'ice' }, async ({ payload }) => {
-          if (pc.remoteDescription && payload.candidate) {
-            await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(console.error)
-          }
-        })
-        .subscribe((s) => console.log('Guard recv channel:', s))
-
-      sendCh.subscribe((s) => console.log('Guard send channel:', s))
+        }
+        if (type === 'ice_resident' && pc.remoteDescription && payload.candidate) {
+          await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(console.error)
+        }
+      })
 
     } catch (e) {
       console.error('Guard error:', e)
@@ -144,73 +165,44 @@ export function useVoiceCall() {
     }
   }, [createPC, cleanup])
 
-  // ── RESIDENT: listens for offer, sends answer ─────────────────────
+  // ── RESIDENT ──────────────────────────────────────────────────────
   const answerCall = useCallback(async (channelName) => {
     try {
       cleanup()
       setError(null)
       setCallState('calling')
+      channelRef.current = channelName
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       localStreamRef.current = stream
 
-      const pc = createPC()
+      const pc = createPC(channelName, 'resident')
       stream.getTracks().forEach(t => pc.addTrack(t, stream))
-
-      // Resident sends on 'resident->{channelName}', receives on 'guard->{channelName}'
-      const uid = Math.random().toString(36).slice(2, 8)
-      const sendCh = supabase.channel(`resident-${channelName}-${uid}`)
-      const recvCh = supabase.channel(`guard-${channelName}`)
-      sendChannelRef.current = sendCh
-      recvChannelRef.current = recvCh
-
-      // ICE → send to guard channel
-      pc.onicecandidate = ({ candidate }) => {
-        if (!candidate) return
-        sendCh.send({
-          type: 'broadcast', event: 'ice',
-          payload: { candidate: candidate.toJSON() }
-        }).catch(console.error)
-      }
 
       let answered = false
 
-      // Listen on guard channel for offer and ICE
-      recvCh
-        .on('broadcast', { event: 'offer' }, async ({ payload }) => {
-          if (answered) return
+      // Subscribe to incoming signals: offer, ice_guard
+      subRef.current = subscribeSignals(channelName, ['offer', 'ice_guard'], async (type, payload) => {
+        if (type === 'offer' && !answered) {
           answered = true
           console.log('Got offer → creating answer')
-          await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp))
+          await pc.setRemoteDescription(new RTCSessionDescription(payload))
           const answer = await pc.createAnswer()
           await pc.setLocalDescription(answer)
-          await sendCh.send({
-            type: 'broadcast', event: 'answer',
-            payload: { sdp: { type: answer.type, sdp: answer.sdp } }
-          })
+          await sendSignal(channelName, 'answer', { type: answer.type, sdp: answer.sdp })
           console.log('Answer sent ✅')
-        })
-        .on('broadcast', { event: 'ice' }, async ({ payload }) => {
-          if (pc.remoteDescription && payload.candidate) {
-            await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(console.error)
-          }
-        })
-        .subscribe((s) => {
-          console.log('Resident recv channel:', s)
-          if (s === 'SUBSCRIBED') {
-            // Signal ready after short delay
-            setTimeout(async () => {
-              console.log('Sending ready signal...')
-              await sendCh.send({
-                type: 'broadcast', event: 'ready',
-                payload: { ok: true }
-              })
-              console.log('Ready sent ✅')
-            }, 800)
-          }
-        })
+        }
+        if (type === 'ice_guard' && pc.remoteDescription && payload.candidate) {
+          await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(console.error)
+        }
+      })
 
-      sendCh.subscribe((s) => console.log('Resident send channel:', s))
+      // Small delay then signal ready
+      setTimeout(async () => {
+        console.log('Sending ready signal via DB...')
+        await sendSignal(channelName, 'ready', { ok: true })
+        console.log('Ready sent ✅')
+      }, 1000)
 
     } catch (e) {
       console.error('Resident error:', e)
@@ -236,5 +228,9 @@ export function useVoiceCall() {
     }
   }, [isMuted])
 
-  return { callState, isMuted, error, callDuration: fmt(callDuration), joinCall, answerCall, endCall, toggleMute }
+  return {
+    callState, isMuted, error,
+    callDuration: fmt(callDuration),
+    joinCall, answerCall, endCall, toggleMute,
+  }
 }
